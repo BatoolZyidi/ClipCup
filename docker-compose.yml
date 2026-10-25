@@ -1,0 +1,34 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clipcup-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DEBUG=False
+      - ALLOWED_HOSTS=*
+      - JOB_TIMEOUT_SECONDS=900
+    volumes:
+      - clipcup-data:/app/backend
+    restart: unless-stopped
+
+  frontend-dev:
+    image: node:22-alpine
+    container_name: clipcup-frontend-dev
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    command: sh -c "npm install && npm run dev -- --host"
+    profiles:
+      - dev
+
+volumes:
+  clipcup-data:

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clip Cup — App Map & Architecture</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #111827;
+      --border: #1f293d;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-grad: linear-gradient(135deg, #6366f1, #06b6d4);
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 2rem 1rem; line-height: 1.6; }
+    .container { max-width: 860px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 2.5rem; }
+    h1 { font-size: 2rem; font-weight: 800; background: var(--accent-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .subtitle { color: var(--muted); font-size: 0.95rem; margin-top: 0.5rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    p, li { color: var(--muted); font-size: 0.9rem; }
+    ul { list-style: none; }
+    li { margin-bottom: 0.75rem; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #1e293b; padding: 0.2rem 0.4rem; border-radius: 6px; color: #38bdf8; font-size: 0.85rem; }
+    .diagram-wrap { text-align: center; margin: 1.5rem 0; }
+    svg { max-width: 100%; height: auto; border-radius: 12px; }
+    .route-step { border-left: 3px solid var(--accent); padding-left: 1rem; margin-bottom: 1.25rem; }
+    .route-step strong { color: #fff; display: block; font-size: 0.95rem; }
+    .tag { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.25); }
+    details { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+    summary { cursor: pointer; color: #38bdf8; font-weight: 600; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Clip Cup — App Map</h1>
+      <p class="subtitle">AI & OpenCV Video Pipeline · Architecture and Navigation Reference</p>
+    </header>
+
+    <div class="card">
+      <h2>App Overview</h2>
+      <p>Clip Cup converts horizontal video (from local uploads or video links) into vertical shorts. It transcribes dialogue, identifies narrative highlights, uses OpenCV neural face detection and visual motion tracking to center the subject, and renders an audio-synced vertical clip with immediate cloud delivery.</p>
+      
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 760 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="760" height="140" rx="12" fill="#0f172a" stroke="#1e293b"/>
+          <!-- Step 1 -->
+          <rect x="20" y="35" width="120" height="70" rx="8" fill="#1e293b" stroke="#334155"/>
+          <text x="80" y="65" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">1. Ingest</text>
+          <text x="80" y="85" text-anchor="middle" fill="#94a3b8" font-size="10">yt-dlp & FFmpeg</text>
+          <!-- Arrow -->
+          <path d="M145 70H165" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)"/>
+          <!-- Step 2 -->
+          <rect x="170" y="35" width="120" height="70" rx="8" fill="#1e293b" stroke="#334155"/>
+          <text x="230" y="65" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">2. Transcribe</text>
+          <text x="230" y="85" text-anchor="middle" fill="#94a3b8" font-size="10">AssemblyAI SDK</text>
+          <!-- Arrow -->
+          <path d="M295 70H315" stroke="#6366f1" stroke-width="2"/>
+          <!-- Step 3 -->
+          <rect x="320" y="35" width="120" height="70" rx="8" fill="#1e293b" stroke="#334155"/>
+          <text x="380" y="65" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">3. Select Highlight</text>
+          <text x="380" y="85" text-anchor="middle" fill="#94a3b8" font-size="10">Context Ranker</text>
+          <!-- Arrow -->
+          <path d="M445 70H465" stroke="#6366f1" stroke-width="2"/>
+          <!-- Step 4 -->
+          <rect x="470" y="35" width="120" height="70" rx="8" fill="#1e293b" stroke="#334155"/>
+          <text x="530" y="65" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">4. Reframe</text>
+          <text x="530" y="85" text-anchor="middle" fill="#94a3b8" font-size="10">OpenCV YuNet</text>
+          <!-- Arrow -->
+          <path d="M595 70H615" stroke="#6366f1" stroke-width="2"/>
+          <!-- Step 5 -->
+          <rect x="620" y="35" width="120" height="70" rx="8" fill="#1e293b" stroke="#10b981"/>
+          <text x="680" y="65" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="700">5. Deliver</text>
+          <text x="680" y="85" text-anchor="middle" fill="#10b981" font-size="10">FFmpeg & S3 URL</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Reference Code Route</h2>
+      
+      <div class="route-step">
+        <strong>1. Video Entry & Submission</strong>
+        <code>frontend/src/components/InputTabs.jsx</code>
+        <p>Receives user input (file upload or video URL), validates bounds, and initiates pipeline via <code>POST /api/jobs</code>.</p>
+      </div>
+
+      <div class="route-step">
+        <strong>2. Highlight Scoring & Dialogue Analysis</strong>
+        <code>backend/clipcup/pipeline/select_segment.py</code>
+        <p>Contains <code>select_segment()</code> and <code>_highest_density_fallback()</code>: evaluates speaking cadence, QA dynamics, and dialogue hooks across the entire video.</p>
+      </div>
+
+      <div class="route-step">
+        <strong>3. OpenCV 5 Tracking & Gaussian Stabilization</strong>
+        <code>backend/clipcup/pipeline/reframe.py</code>
+        <p>Contains <code>reframe_video()</code>: YuNet ONNX face detection, optical motion fallback, and bidirectional Gaussian kernel smoothing to eliminate all micro-jitter.</p>
+      </div>
+
+      <div class="route-step">
+        <strong>4. Result Presentation & History Navigation</strong>
+        <code>frontend/src/components/ResultPlayer.jsx</code> & <code>frontend/src/App.jsx</code>
+        <p>Displays vertical video preview, reframing metrics, full history restoration, and immediate "Back to Home" navigation.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>To Change This, Start Here</h2>
+      <ul>
+        <li><strong>Adjust short duration limit:</strong> Change <code>MAX_SEGMENT_DURATION_MS</code> in <code>backend/clipcup/pipeline/select_segment.py</code>.</li>
+        <li><strong>Tune camera tracking sensitivity:</strong> Adjust <code>window_size</code> or <code>deadzone_px</code> in <code>backend/clipcup/pipeline/reframe.py</code>.</li>
+        <li><strong>Modify frontend branding or buttons:</strong> Edit <code>frontend/src/components/LandingPage.jsx</code> and <code>frontend/src/components/InputTabs.jsx</code>.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>A Practice to Reuse</h2>
+      <p><strong>Separation of Transient Processing from Persistent State:</strong> Heavy video processing runs in isolated per-job temporary directories that are guaranteed to be cleaned up in a <code>finally</code> block, while metadata and auth state persist in PostgreSQL. This prevents storage bloat, ensures user privacy, and keeps the server lean.</p>
+    </div>
+  </div>
+</body>
+</html>

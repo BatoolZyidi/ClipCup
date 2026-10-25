@@ -1,0 +1,26 @@
+# Devpost personal learning context
+/devpost/learner-profile.md
+
+# Environment variables & local credentials
+.env
+.env.*
+!.env.example
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+backend/.venv/
+*.sqlite3
+
+# Local media & video test artifacts
+backend/media/
+tests/*.mp4
+tests/benchmarks/*.mp4
+
+# Node & Frontend
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+Thumbs.db

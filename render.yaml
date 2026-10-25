@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: clipcup-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # Set this manually in Render dashboard
+      - key: SECRET_KEY
+        generateValue: true  # Render auto-generates a secure value
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: ASSEMBLYAI_API_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: ap-southeast-2
+      - key: S3_BUCKET_NAME
+        value: clipcup
+      - key: BEDROCK_MODEL_ID
+        value: anthropic.claude-3-5-sonnet-20240620-v1:0
+      - key: BEDROCK_REGION
+        value: us-east-1
+      - key: JOB_TIMEOUT_SECONDS
+        value: "900"
+      - key: MODEL_PATH
+        value: backend/models/face_detection_yunet_2023mar.onnx
+      - key: ALLOW_MOCK_FALLBACK
+        value: "False"
+    healthCheckPath: /api/health
