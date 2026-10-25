@@ -310,4 +310,11 @@ A demo account is available for reviewers:
 
 ---
 
+## License
+
+This project is licensed under the [MIT License](LICENSE) — free to use, modify, and distribute for everyone.
+
+
+---
+
 
