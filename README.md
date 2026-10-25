@@ -1,31 +1,49 @@
 # Clip Cup 🎬☕
 
-**Turn Long Landscape Videos into Engaging 9:16 Shorts**
+**Turn Long Landscape Videos into Engaging 9:16 Shorts — Automatically**
 
-Clip Cup is an automated computer-vision and AI pipeline built for the Devpost Learn *Build With AI: Basics* hackathon. It ingests long-form videos (uploaded files or direct URLs, max 10 minutes), discovers viral highlights, reframes the video to 9:16 vertical using OpenCV YuNet face detection with Exponential Moving Average (EMA) smoothing and scene cut detection, and streams the finished 1080x1920 H.264 short with synchronized audio into AWS S3 with a 24-hour presigned URL. Job state is persisted in Supabase PostgreSQL.
+Clip Cup is an AI-powered computer vision pipeline built for the Devpost Learn *Build With AI: Basics* hackathon. It ingests long-form videos (uploaded files or direct URLs, max 10 minutes), discovers the most engaging highlight using LLM transcript analysis, reframes it to 9:16 vertical using OpenCV YuNet face detection with EMA smoothing, and delivers a finished 1080×1920 H.264 short via AWS S3 presigned URL. Job state is persisted in Supabase PostgreSQL.
+
+---
+
+## What It Does
+
+1. **Upload or submit** a direct video URL (MP4, MOV, max 10 min)
+2. **AssemblyAI** transcribes speech with word-level timestamps
+3. **AWS Bedrock (Claude 3.5 Sonnet)** picks the best ≤90s highlight
+4. **OpenCV YuNet** tracks faces and reframes to 9:16 with smooth EMA panning
+5. **FFmpeg** encodes 1080×1920 H.264 with synced audio
+6. **AWS S3** delivers a 24-hour presigned URL — no source video stored
 
 ---
 
 ## Key Features
 
-- **No Persistent Source Storage**: Source videos are kept only inside an isolated per-job temporary workspace and purged in a `finally` block immediately after rendering.
-- **Smart OpenCV 5 YuNet Reframing**:
-  - `cv2.FaceDetectorYN` (YuNet ONNX model) detects speaker faces every $N=5$ frames.
-  - Linear motion interpolation between detections.
-  - Exponential Moving Average (EMA) smoothing prevents camera shake.
-  - Max-pan-speed clamp ($\le 18\text{ px/frame}$) avoids dizzying camera snaps.
-  - HSV histogram correlation detects camera scene cuts, immediately resetting smoothing centers.
-  - Stable center-crop fallback when no faces are detected.
-- **AI Highlight Selection**:
-  - AssemblyAI speech-to-text with word-level timestamps and speaker utterances.
-  - AWS Bedrock (Claude 3.5 Sonnet / Amazon Titan) generates strict JSON segment boundaries ($\le 90$s) snapped to utterance boundaries.
-  - Automatic fallback to highest speech-density 60s window on API or JSON failure.
-- **High-Quality Streaming Render**:
-  - Streams frames via OpenCV `VideoCapture` directly into an FFmpeg subprocess stdin pipe.
-  - Encodes 1080x1920 H.264 (`yuv420p`, `-movflags +faststart`) muxed with the segment's original AAC audio.
-- **Dual Interface**:
-  - Full-featured **React (Vite) + Tailwind CSS** web application with drag-and-drop file upload, live 3-second stage polling, and a 9:16 video player.
-  - Standalone **Django CLI management command** (`python manage.py run_clip`).
+- **Smart Face Tracking**: `cv2.FaceDetectorYN` (YuNet ONNX) detects faces every 5 frames, linear interpolation between detections
+- **EMA Smoothing**: Exponential Moving Average (α = 0.15) + max-pan-speed clamp (≤18 px/frame) eliminates camera shake
+- **Scene Cut Detection**: HSV histogram correlation detects camera cuts and immediately resets EMA for crisp transitions
+- **Center-Crop Fallback**: Stable center crop when no face is detected (B-roll, graphics, landscape shots)
+- **AI Highlight Selection**: Bedrock generates strict JSON boundaries snapped to utterance timestamps; falls back to highest speech-density 60s window on failure
+- **No Persistent Source Storage**: Per-job temp workspace purged immediately in a `finally` block
+- **JWT Auth**: Full account system — register, log in, view personal job history
+- **Dual Interface**: React web app + Django CLI management command
+
+---
+
+## Pipeline Architecture
+
+```
+┌─────────────┐   ┌──────────────┐   ┌────────────────┐   ┌──────────────────┐   ┌───────────────┐
+│ 1. Ingest   │ → │ 2. Transcribe│ → │ 3. Select      │ → │ 4. Reframe       │ → │ 5. Render     │
+│ Source probe│   │ AssemblyAI   │   │ Segment        │   │ OpenCV YuNet     │   │ FFmpeg pipe   │
+│ Max 10 min  │   │ Word times   │   │ AWS Bedrock    │   │ EMA + scene cut  │   │ 1080×1920 H.264│
+│ Audio strip │   │ Utterances   │   │ ≤90s JSON      │   │ Max-pan clamp    │   │ Synced audio  │
+└─────────────┘   └──────────────┘   └────────────────┘   └──────────────────┘   └───────┬───────┘
+                                                                                           │
+                                                                               6. AWS S3 Storage
+                                                                               24h Presigned URL
+                                                                               Temp workspace wiped
+```
 
 ---
 
@@ -35,41 +53,55 @@ Clip Cup is an automated computer-vision and AI pipeline built for the Devpost L
 ClipCup/
 ├── backend/
 │   ├── manage.py
-│   ├── requirements.txt         # Pinned Python dependencies
+│   ├── requirements.txt              # Pinned Python dependencies
 │   ├── clipcup/
-│   │   ├── settings.py          # Environment-driven Django configuration
-│   │   ├── urls.py              # API routing & local media serving
-│   │   ├── models.py            # Job model tracking states & reframing stats
-│   │   ├── views.py             # DRF endpoints (/api/jobs, /api/health)
-│   │   ├── services.py          # Background ThreadPoolExecutor worker
-│   │   ├── tests.py             # Unit & integration test suite
-│   │   ├── pipeline/            # Core processing engine
-│   │   │   ├── ingest.py        # Ingestion, validation & audio extraction
-│   │   │   ├── transcribe.py    # AssemblyAI transcription
-│   │   │   ├── select_segment.py# Bedrock highlight selection & fallback
-│   │   │   ├── reframe.py       # OpenCV YuNet face detection & EMA smoothing
-│   │   │   ├── render.py        # OpenCV + FFmpeg pipe rendering
-│   │   │   ├── storage.py       # S3 upload & presigned URL generation
-│   │   │   └── orchestrator.py  # Lifecycle & timeout management
-│   │   └── management/
-│   │       └── commands/
-│   │           └── run_clip.py  # CLI management command
-│   └── models/                  # Downloaded ONNX face detection weights
-├── frontend/                    # React (Vite) + Tailwind web application
+│   │   ├── settings.py              # Environment-driven Django config
+│   │   ├── urls.py                  # API routing
+│   │   ├── models.py                # Job model (states + reframing stats)
+│   │   ├── views.py                 # DRF endpoints (/api/jobs, /api/health)
+│   │   ├── auth_views.py            # Register, login, refresh, logout, me
+│   │   ├── services.py              # ThreadPoolExecutor background worker
+│   │   ├── tests.py                 # Unit & integration tests
+│   │   └── pipeline/
+│   │       ├── ingest.py            # Validation, download, audio extraction
+│   │       ├── transcribe.py        # AssemblyAI transcription
+│   │       ├── select_segment.py    # Bedrock highlight selection + fallback
+│   │       ├── reframe.py           # OpenCV YuNet + EMA smoothing
+│   │       ├── render.py            # OpenCV + FFmpeg pipe rendering
+│   │       ├── storage.py           # S3 upload + presigned URL
+│   │       └── orchestrator.py      # Lifecycle + timeout management
+├── frontend/                        # React (Vite) + Tailwind CSS
+│   ├── src/
+│   │   ├── App.jsx                  # Main app + routing
+│   │   ├── api.js                   # API base URL helper
+│   │   ├── context/AuthContext.jsx  # JWT auth context + authFetch
+│   │   └── components/
+│   │       ├── LandingPage.jsx
+│   │       ├── AuthPage.jsx
+│   │       ├── Header.jsx
+│   │       ├── InputTabs.jsx        # URL + file upload tabs
+│   │       ├── ProgressBar.jsx      # Live stage polling
+│   │       ├── ResultPlayer.jsx     # 9:16 video player
+│   │       ├── StatsCard.jsx        # AI metrics + face tracking stats
+│   │       └── HistoryPanel.jsx     # Personal job history
+│   └── vercel.json
 ├── scripts/
-│   ├── download_models.sh       # Bash model downloader
-│   ├── download_models.ps1      # PowerShell model downloader
-│   └── evaluate.py              # Automated 3-scenario benchmark suite
-├── deploy/
-│   └── README.md                # AWS EC2 deployment & IAM configuration guide
+│   ├── download_models.sh           # Bash model downloader
+│   ├── download_models.ps1          # PowerShell model downloader
+│   └── evaluate.py                  # 3-scenario benchmark suite
 ├── docs/
-│   ├── architecture.md          # Architecture overview with Mermaid diagram
-│   ├── evaluation.md            # Benchmark performance & quality results
-│   └── REPORT.md                # Full technical report
-├── devpost/                     # Devpost Learn Skill Pack specifications
-├── Dockerfile                   # Multi-stage production container
-├── docker-compose.yml           # Local multi-service orchestration
-├── .env.example                 # Environment configuration template
+│   ├── architecture.md
+│   └── evaluation.md
+├── devpost/                         # Hackathon planning docs
+│   ├── scope.md
+│   ├── prd.md
+│   ├── spec.md
+│   ├── checklist.md
+│   └── app-map.html
+├── Dockerfile                       # Multi-stage production container
+├── docker-compose.yml
+├── render.yaml                      # Render deployment config
+├── .env.example                     # Environment config template
 └── README.md
 ```
 
@@ -79,153 +111,203 @@ ClipCup/
 
 ### Prerequisites
 - Python 3.12+
-- FFmpeg (must be available on PATH)
+- FFmpeg (must be on PATH)
 - Node.js 20+ & npm
 
-### 1. Clone & Configure Environment
-```bash
-git clone https://github.com/your-username/ClipCup.git
-cd ClipCup
+### 1. Clone & Configure
 
-# Copy environment template
+```bash
+git clone https://github.com/BatoolZyidi/ClipCup.git
+cd ClipCup
 cp .env.example .env
 ```
 
-Edit `.env` with your API credentials (optional for offline testing with built-in fallbacks):
+Edit `.env` with your credentials:
+
 ```ini
-ASSEMBLYAI_API_KEY=your_key_here
-AWS_ACCESS_KEY_ID=your_aws_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret
-AWS_REGION=us-east-1
-S3_BUCKET_NAME=your_s3_bucket_name
+SECRET_KEY=your-django-secret-key
+DATABASE_URL=postgresql://user:pass@host:6543/postgres?sslmode=require
+ASSEMBLYAI_API_KEY=your_key
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+AWS_REGION=ap-southeast-2
+S3_BUCKET_NAME=clipcup
 BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20240620-v1:0
 ```
 
+> Leave `DATABASE_URL` blank to fall back to local SQLite for offline development.
+
 ### 2. Download Face Detection Model
+
 ```bash
-# On Linux / macOS:
+# Linux / macOS
 bash scripts/download_models.sh
 
-# On Windows (PowerShell):
+# Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File .\scripts\download_models.ps1
 ```
 
 ### 3. Backend Setup
+
 ```bash
-# Create virtual environment
 python -m venv backend/.venv
 
-# Activate virtual environment
-# Windows:
+# Activate — Windows:
 .\backend\.venv\Scripts\Activate.ps1
-# Linux / macOS:
+# Activate — Linux/macOS:
 source backend/.venv/bin/activate
 
-# Install pinned dependencies
 pip install -r backend/requirements.txt
-
-# Run migrations
 python backend/manage.py migrate
 ```
 
 ### 4. Frontend Setup
+
 ```bash
 cd frontend
 npm install
-npm run build
-cd ..
 ```
 
 ---
 
 ## Running the Application
 
-### Option A: Web Application (Backend + Frontend)
+### Web App (Backend + Frontend)
 
-1. Start the Django API Server:
 ```bash
+# Terminal 1 — Django API
 python backend/manage.py runserver 8000
-```
 
-2. Start the React Frontend Dev Server:
-```bash
+# Terminal 2 — React dev server
 cd frontend
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### Option B: Standalone CLI
+Open [http://localhost:5173](http://localhost:5173)
 
-Run the full pipeline directly on any local video file or direct URL:
+### CLI — Process a Single Video
+
 ```bash
-python backend/manage.py run_clip <path_or_url> --output <destination.mp4>
+python backend/manage.py run_clip <path_or_url> --output output_short.mp4
 ```
 
-Example with test video:
+### Docker (Local)
+
 ```bash
-python backend/manage.py run_clip tests/sample_video.mp4 --output tests/output_short.mp4
+docker compose up -d --build backend
 ```
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/health` | None | Health check |
+| `POST` | `/api/auth/register` | None | Create account |
+| `POST` | `/api/auth/login` | None | Login → JWT tokens |
+| `POST` | `/api/auth/refresh` | None | Refresh access token |
+| `POST` | `/api/auth/logout` | JWT | Invalidate refresh token |
+| `GET` | `/api/auth/me` | JWT | Current user profile |
+| `POST` | `/api/jobs` | JWT | Submit video (URL or file upload) |
+| `GET` | `/api/jobs/<id>` | JWT | Poll job status + result |
+| `GET` | `/api/jobs/history` | JWT | List all personal jobs |
+
+### Job Status Flow
+
+```
+PENDING → TRANSCRIBING → SELECTING → REFRAMING → RENDERING → DONE
+                                                            ↘ FAILED
+```
+
+---
+
+## OpenCV Computer Vision Details
+
+### YuNet Face Detection
+- `cv2.FaceDetectorYN` with the YuNet ONNX model — lightweight, high-performance deep learning detector
+- Samples every N=5 frames; interpolates between detections
+- Multi-face: ranks by bounding box area × confidence to follow the primary speaker
+
+### EMA Smoothing & Pan Clamping
+$$\hat{x}_t = \alpha \cdot x_t + (1 - \alpha) \cdot \hat{x}_{t-1}, \quad \alpha = 0.15$$
+
+Displacement per frame clamped to ≤18 px/frame to prevent dizzying snaps.
+
+### Scene Cut Detection
+HSV histogram correlation between consecutive frames:
+
+$$\text{Correlation} = \text{compareHist}(H_{t-1}, H_t, \text{HISTCMP\_CORREL})$$
+
+When correlation < 0.55, a scene cut is detected and the EMA center immediately resets.
+
+---
+
+## Failure Modes & Fallbacks
+
+| Scenario | Reaction |
+|----------|----------|
+| YouTube page URL submitted | HTTP 400 — direct video URL required |
+| Video > 10 minutes | Rejected before processing |
+| No Bedrock API key | Falls back to highest speech-density 60s window |
+| No AssemblyAI key | Falls back to synthetic transcript (local dev) |
+| No faces detected | Stable center crop — 0% face hit rate reported |
+| No S3 configured | Writes to local `media/shorts/` |
+| Job > 15 min | `JobTimeoutError` — job marked FAILED cleanly |
 
 ---
 
 ## Running Tests & Benchmarks
 
-### Unit & Integration Test Suite
 ```bash
+# Unit & integration tests
 python backend/manage.py test clipcup
-```
 
-### Automated Benchmark Evaluation
-Run the 3-scenario computer vision benchmark suite:
-```bash
+# 3-scenario computer vision benchmark
 python scripts/evaluate.py
 ```
-Results are saved to `docs/evaluation.md`.
+
+Results saved to `docs/evaluation.md`.
 
 ---
 
-## Docker & Production Deployment
+## Ethical Use & Responsible AI
 
-Run locally with Docker Compose:
-```bash
-docker compose up -d --build backend
-```
-
-For full AWS EC2 production deployment, IAM role policies, security groups, and Nginx SSL configuration, see [deploy/README.md](deploy/README.md).
-
----
-
-## Deploying to Render (Backend) + Vercel (Frontend)
-
-### Backend → Render
-
-1. Go to [render.com](https://render.com) → **New Web Service** → connect your GitHub repo
-2. Render will detect `render.yaml` automatically
-3. In the Render dashboard **Environment** tab, add your secret values:
-   - `DATABASE_URL` — your Supabase connection string
-   - `ASSEMBLYAI_API_KEY`
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
-4. Deploy — your backend URL will be something like `https://clipcup-backend.onrender.com`
-
-### Frontend → Vercel
-
-1. Go to [vercel.com](https://vercel.com) → **New Project** → connect your GitHub repo
-2. Set **Root Directory** to `frontend`
-3. Add one Environment Variable:
-   - `VITE_API_BASE_URL` = `https://clipcup-backend.onrender.com` *(your Render URL)*
-4. Deploy — Vercel handles the Vite build automatically via `frontend/vercel.json`
+- **No facial recognition**: YuNet is used for geometric crop centering only — no embeddings, no identification, no biometric storage
+- **No persistent source storage**: Source video purged immediately after rendering
+- **User consent**: Designed for creators processing their own content
 
 ---
 
 ## Test Credentials
 
-A demo account is available for reviewers to try the app without signing up:
+A demo account is available for reviewers:
 
 | Field | Value |
-|---|---|
+|-------|-------|
 | **Username** | `test_user` |
 | **Password** | `testuser@123` |
 
-> These credentials are for demonstration only. Sign up to create your own account.
+> Sign up to create your own account.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.12, Django 5, Django REST Framework |
+| Auth | djangorestframework-simplejwt (JWT) |
+| Database | Supabase PostgreSQL (SQLite fallback for local dev) |
+| Speech-to-Text | AssemblyAI SDK |
+| LLM | AWS Bedrock (Claude 3.5 Sonnet) |
+| Computer Vision | OpenCV 4 (`cv2.FaceDetectorYN`, YuNet ONNX) |
+| Video Encoding | FFmpeg (subprocess pipe) |
+| Storage | AWS S3 + presigned URLs |
+| Frontend | React, Vite, Tailwind CSS |
+| Job Workers | Python `ThreadPoolExecutor` (no Celery/Redis needed) |
+| Container | Docker + Docker Compose |
+
+---
+
 
