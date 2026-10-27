@@ -301,7 +301,7 @@ A demo account is available for reviewers:
 | Database | Supabase PostgreSQL (SQLite fallback for local dev) |
 | Speech-to-Text | AssemblyAI SDK |
 | LLM | AWS Bedrock (Claude 3.5 Sonnet) |
-| Computer Vision | OpenCV 4 (`cv2.FaceDetectorYN`, YuNet ONNX) |
+| Computer Vision | OpenCV 5 (`cv2.FaceDetectorYN`, YuNet ONNX) |
 | Video Encoding | FFmpeg (subprocess pipe) |
 | Storage | AWS S3 + presigned URLs |
 | Frontend | React, Vite, Tailwind CSS |
